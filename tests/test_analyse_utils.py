@@ -1455,3 +1455,221 @@ def test_yaml_inline_comments_comprehensive(
         assert expected_associations[i] in structure_text, (
             f"Comment {i} '{comment.text.decode('utf-8')}' -> Expected '{expected_associations[i]}' in '{structure_text}'"
         )
+
+
+# ========== strip_doc_comment_text tests ==========
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        # Single Rust /// line
+        ("/// This is a doc comment.", "This is a doc comment."),
+        # Rust /// with no trailing space after prefix
+        ("///No space", "No space"),
+        # Rust //! inner doc
+        ("//! Inner module doc.", "Inner module doc."),
+        # Regular // comment
+        ("// A plain comment.", "A plain comment."),
+        # Block Doxygen /** */
+        (
+            "/**\n * @brief Compute the result.\n * @param x Input value\n */",
+            "@brief Compute the result.\n@param x Input value",
+        ),
+        # Single-line block /** */
+        ("/** Brief one-liner. */", "Brief one-liner."),
+        # Block /* */ without double star
+        ("/*\n * Interior line.\n */", "Interior line."),
+        # Leading/trailing blank lines in block comment are stripped
+        ("/**\n *\n * Actual content.\n *\n */", "Actual content."),
+        # Empty /// line becomes empty string line
+        ("///", ""),
+    ],
+)
+def test_strip_doc_comment_text(raw, expected):
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    result = utils.strip_doc_comment_text(raw, CommentType.cpp)
+    assert result == expected
+
+
+# ========== extract_doc_comment_node tests ==========
+
+
+def _parse_rust(code: bytes, init_rust_tree_sitter) -> list:
+    parser, query = init_rust_tree_sitter
+    return utils.extract_comments(code, parser, query)
+
+
+def _parse_cpp(code: bytes, init_cpp_tree_sitter) -> list:
+    parser, query = init_cpp_tree_sitter
+    return utils.extract_comments(code, parser, query)
+
+
+def _scope_for(comments, comment_type):
+    """Return (scope_node, comment_node) for the first need-marker comment."""
+    from sphinx_codelinks.analyse.utils import find_associated_scope
+
+    comment_node = comments[0]
+    scope = find_associated_scope(comment_node, comment_type)
+    return scope, comment_node
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_doc_prefix"),
+    [
+        # Rust: need inside function body, /// before function → doc found
+        (
+            b"""/// This function does something important.
+fn my_function() {
+    // @My Function, IMPL_1, impl
+}
+""",
+            "This function does something important.",
+        ),
+        # Rust: need inside struct body, /// before struct → doc found
+        (
+            b"""/// My special struct.
+struct MyStruct {
+    // @My Struct, IMPL_2, impl
+    x: i32,
+}
+""",
+            "My special struct.",
+        ),
+    ],
+)
+def test_extract_doc_comment_node_rust_finds_doc(
+    code, expected_doc_prefix, init_rust_tree_sitter
+):
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    comments = _parse_rust(code, init_rust_tree_sitter)
+    # The need-marker comment is the non-/// one; find it
+    need_comment = next(
+        c
+        for c in comments
+        if c.text and not c.text.decode("utf-8").startswith("///")
+    )
+    scope = utils.find_associated_scope(need_comment, CommentType.rust)
+    assert scope is not None
+
+    doc_node = utils.extract_doc_comment_node(scope, need_comment, CommentType.rust)
+    assert doc_node is not None
+    raw = doc_node.text.decode("utf-8") if doc_node.text else ""
+    cleaned = utils.strip_doc_comment_text(raw, CommentType.rust)
+    assert cleaned.startswith(expected_doc_prefix)
+
+
+def test_extract_doc_comment_node_rust_sole_marker_returns_none(
+    init_rust_tree_sitter,
+):
+    """When the sole /// before the function IS the need-marker, no doc is found."""
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    code = b"""/// @My Function, IMPL_1, impl
+fn my_function() {}
+"""
+    comments = _parse_rust(code, init_rust_tree_sitter)
+    assert comments
+    need_comment = comments[0]
+    scope = utils.find_associated_scope(need_comment, CommentType.rust)
+    assert scope is not None
+
+    doc_node = utils.extract_doc_comment_node(scope, need_comment, CommentType.rust)
+    assert doc_node is None
+
+
+def test_extract_doc_comment_node_rust_doc_plus_marker(init_rust_tree_sitter):
+    """/// doc line + /// marker line before function: doc line is returned."""
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    code = b"""/// Real documentation here.
+/// @My Function, IMPL_1, impl
+fn my_function() {}
+"""
+    comments = _parse_rust(code, init_rust_tree_sitter)
+    # The marker is the second line_comment (row 1)
+    comments_sorted = sorted(comments, key=lambda c: c.start_point.row)
+    need_comment = comments_sorted[1]  # "/// @My Function..."
+
+    scope = utils.find_associated_scope(need_comment, CommentType.rust)
+    assert scope is not None
+
+    doc_node = utils.extract_doc_comment_node(scope, need_comment, CommentType.rust)
+    assert doc_node is not None
+    raw = doc_node.text.decode("utf-8") if doc_node.text else ""
+    assert "Real documentation here" in raw
+
+
+def test_extract_doc_comment_node_rust_no_doc(init_rust_tree_sitter):
+    """Function with no preceding doc comment returns None."""
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    code = b"""fn my_function() {
+    // @My Function, IMPL_1, impl
+}
+"""
+    comments = _parse_rust(code, init_rust_tree_sitter)
+    need_comment = comments[0]
+    scope = utils.find_associated_scope(need_comment, CommentType.rust)
+    assert scope is not None
+
+    doc_node = utils.extract_doc_comment_node(scope, need_comment, CommentType.rust)
+    assert doc_node is None
+
+
+def test_extract_doc_comment_node_cpp_block_doc(init_cpp_tree_sitter):
+    """C++ /** */ block comment before function is returned as doc node."""
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    code = b"""/**
+ * @brief Compute the result.
+ * @param x Input value
+ */
+void compute(int x) {
+    // @Compute Result, IMPL_2, impl
+}
+"""
+    comments = _parse_cpp(code, init_cpp_tree_sitter)
+    # The need-marker is the // comment (not the /** */ one)
+    need_comment = next(
+        c
+        for c in comments
+        if c.text and c.text.decode("utf-8").startswith("//")
+        and "@Compute" in c.text.decode("utf-8")
+    )
+    scope = utils.find_associated_scope(need_comment, CommentType.cpp)
+    assert scope is not None
+
+    doc_node = utils.extract_doc_comment_node(scope, need_comment, CommentType.cpp)
+    assert doc_node is not None
+    raw = doc_node.text.decode("utf-8") if doc_node.text else ""
+    cleaned = utils.strip_doc_comment_text(raw, CommentType.cpp)
+    assert "@brief Compute the result." in cleaned
+
+
+def test_extract_doc_comment_node_unsupported_type_returns_none(
+    init_yaml_tree_sitter,
+):
+    """YAML comment type returns None immediately."""
+    from sphinx_codelinks.source_discover.config import CommentType
+    from tree_sitter import Language, Parser, Query
+    import tree_sitter_rust
+
+    # Parse a rust snippet but pass yaml comment_type — should return None
+    parsed_language = Language(tree_sitter_rust.language())
+    query = Query(parsed_language, utils.RUST_QUERY)
+    parser = Parser(parsed_language)
+    code = b"""/// Doc line.
+fn foo() { // @NEED_1, impl
+}
+"""
+    comments = utils.extract_comments(code, parser, query)
+    need_comment = next(
+        c for c in comments if c.text and "@NEED" in c.text.decode("utf-8")
+    )
+    scope = utils.find_associated_scope(need_comment, CommentType.rust)
+
+    result = utils.extract_doc_comment_node(scope, need_comment, CommentType.yaml)
+    assert result is None

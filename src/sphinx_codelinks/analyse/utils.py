@@ -2,6 +2,7 @@ from collections.abc import ByteString, Callable
 import configparser
 import logging
 from pathlib import Path
+import re
 from typing import TypedDict
 from urllib.request import pathname2url
 
@@ -260,6 +261,73 @@ def find_associated_scope(
     if not associated_scope:
         associated_scope = find_enclosing_scope(node, comment_type)
     return associated_scope
+
+
+def extract_doc_comment_node(
+    scope_node: TreeSitterNode,
+    src_comment_node: TreeSitterNode,
+    comment_type: CommentType,
+) -> TreeSitterNode | None:
+    """Return the nearest doc-comment node immediately preceding scope_node.
+
+    Skips src_comment_node itself so that when the need marker sits as a
+    doc-style comment directly before the scope it is not mistakenly treated
+    as the documentation text.  Returns None if no qualifying doc comment is
+    found or if the comment type is not supported (only cpp and rust).
+    """
+    if comment_type not in {CommentType.cpp, CommentType.rust}:
+        return None
+
+    doc_types: set[str] = (
+        {"line_comment", "block_comment"}
+        if comment_type == CommentType.rust
+        else {"comment"}
+    )
+
+    candidate = scope_node.prev_named_sibling
+    if candidate is None:
+        return None
+    # Skip if the immediately preceding sibling IS the need-marker comment
+    if candidate.id == src_comment_node.id:
+        candidate = candidate.prev_named_sibling
+    if candidate is None or candidate.type not in doc_types:
+        return None
+    return candidate
+
+
+def strip_doc_comment_text(raw: str, comment_type: CommentType) -> str:  # noqa: ARG001
+    """Strip comment delimiters from a doc comment and return clean plain text.
+
+    Block-doc style (/** ... */ or /* ... */):
+      Strip delimiters, strip a leading '* ' per interior line, drop leading
+      and trailing blank lines.
+
+    Line-doc style (///, //!, //):
+      Strip the prefix and exactly one optional space per line.
+    """
+    stripped = raw.strip()
+    if stripped.startswith("/*"):
+        inner = re.sub(r"^/\*+\s*", "", stripped)
+        inner = re.sub(r"\s*\*+/$", "", inner)
+        lines = inner.splitlines()
+        cleaned = [re.sub(r"^\s*\*\s?", "", line).rstrip() for line in lines]
+        while cleaned and not cleaned[0]:
+            cleaned.pop(0)
+        while cleaned and not cleaned[-1]:
+            cleaned.pop()
+        return "\n".join(cleaned)
+    else:
+        result = []
+        for line in raw.splitlines():
+            s = line.lstrip()
+            for prefix in ("///", "//!", "//"):
+                if s.startswith(prefix):
+                    s = s[len(prefix):]
+                    if s.startswith(" "):
+                        s = s[1:]
+                    break
+            result.append(s.rstrip())
+        return "\n".join(result)
 
 
 def locate_git_root(src_dir: Path) -> Path | None:

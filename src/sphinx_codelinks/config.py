@@ -327,6 +327,7 @@ class AnalyseSectionConfigType(TypedDict, total=False):
     need_id_refs: NeedIdRefsConfigType
     marked_rst: MarkedRstConfigType
     oneline_comment_style: OneLineCommentStyleType
+    doc_comment_field: str | None
 
 
 class SourceAnalyseConfigType(TypedDict, total=False):
@@ -342,6 +343,7 @@ class SourceAnalyseConfigType(TypedDict, total=False):
     need_id_refs_config: NeedIdRefsConfig
     marked_rst_config: MarkedRstConfig
     oneline_comment_style: OneLineCommentStyle
+    doc_comment_field: str | None
 
 
 class ProjectsAnalyseConfigType(TypedDict, total=False):
@@ -397,6 +399,13 @@ class SourceAnalyseConfig:
         default_factory=OneLineCommentStyle
     )
     """Configuration for extracting oneline needs from comments."""
+
+    doc_comment_field: str | None = field(
+        default=None,
+        metadata={"schema": {"type": ["string", "null"]}},
+    )
+    """If set, the text of the doc comment preceding the tagged scope is extracted
+    and stored in this need field (e.g. 'description'). Set to None to disable."""
 
     @classmethod
     def get_schema(cls, name: str) -> dict[str, Any] | None:  # type: ignore[explicit-any]

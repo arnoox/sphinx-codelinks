@@ -232,3 +232,82 @@ def test_oneline_parser_warnings_are_collected(tmp_path):
     warning = src_analyse.oneline_warnings[0]
     assert "too_many_fields" in warning.sub_type
     assert warning.lineno == 17
+
+
+# ========== doc_comment_field integration tests ==========
+
+DOC_COMMENT_DATA_DIR = TEST_DATA_DIR / "doc_comment"
+
+
+def _run_analyse(src_paths, src_dir, doc_comment_field=None, comment_type=None):
+    """Helper to run SourceAnalyse with oneline needs and optional doc_comment_field."""
+    from sphinx_codelinks.config import OneLineCommentStyle
+    from sphinx_codelinks.source_discover.config import CommentType
+
+    cfg = SourceAnalyseConfig(
+        src_files=src_paths,
+        src_dir=src_dir,
+        comment_type=comment_type or CommentType.rust,
+        get_need_id_refs=False,
+        get_oneline_needs=True,
+        get_rst=False,
+        oneline_comment_style=OneLineCommentStyle(),
+        doc_comment_field=doc_comment_field,
+    )
+    analyse = SourceAnalyse(cfg)
+    analyse.git_remote_url = None
+    analyse.git_commit_rev = None
+    analyse.run()
+    return analyse
+
+
+def test_doc_comment_field_disabled_by_default():
+    """When doc_comment_field is None, no description field is injected."""
+    src_path = DOC_COMMENT_DATA_DIR / "demo.rs"
+    analyse = _run_analyse([src_path], DOC_COMMENT_DATA_DIR, doc_comment_field=None)
+
+    assert analyse.oneline_needs
+    for need in analyse.oneline_needs:
+        assert "description" not in need.need
+
+
+def test_doc_comment_field_rust_with_preceding_doc():
+    """Rust fn with /// before it: need gets description from the doc comment."""
+    src_path = DOC_COMMENT_DATA_DIR / "demo.rs"
+    analyse = _run_analyse([src_path], DOC_COMMENT_DATA_DIR, doc_comment_field="description")
+
+    needs_by_id = {n.need["id"]: n for n in analyse.oneline_needs}
+
+    # ADD_FUNC has /// doc lines above fn add()
+    assert "ADD_FUNC" in needs_by_id
+    add_need = needs_by_id["ADD_FUNC"]
+    assert "description" in add_need.need
+    description = add_need.need["description"]
+    assert "Computes the sum of two integers" in description
+    assert "Returns the result immediately" in description
+
+
+def test_doc_comment_field_rust_no_doc():
+    """Rust fn with no preceding doc comment: description is NOT injected."""
+    src_path = DOC_COMMENT_DATA_DIR / "demo.rs"
+    analyse = _run_analyse([src_path], DOC_COMMENT_DATA_DIR, doc_comment_field="description")
+
+    needs_by_id = {n.need["id"]: n for n in analyse.oneline_needs}
+
+    # MUL_FUNC has no doc comment before fn multiply()
+    assert "MUL_FUNC" in needs_by_id
+    mul_need = needs_by_id["MUL_FUNC"]
+    assert "description" not in mul_need.need
+
+
+def test_doc_comment_field_rust_struct_with_doc():
+    """Rust struct with /// before it: need gets description."""
+    src_path = DOC_COMMENT_DATA_DIR / "demo.rs"
+    analyse = _run_analyse([src_path], DOC_COMMENT_DATA_DIR, doc_comment_field="description")
+
+    needs_by_id = {n.need["id"]: n for n in analyse.oneline_needs}
+
+    assert "POINT_STRUCT" in needs_by_id
+    point_need = needs_by_id["POINT_STRUCT"]
+    assert "description" in point_need.need
+    assert "simple point struct" in point_need.need["description"]

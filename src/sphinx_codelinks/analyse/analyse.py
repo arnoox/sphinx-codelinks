@@ -345,6 +345,17 @@ class SourceAnalyse:
                     src_comment,
                     self.analyse_config.oneline_comment_style,
                 )
+                if self.analyse_config.doc_comment_field and tagged_scope is not None:
+                    doc_node = utils.extract_doc_comment_node(
+                        tagged_scope,
+                        src_comment.node,
+                        self.analyse_config.comment_type,
+                    )
+                    if doc_node is not None:
+                        doc_text = self._collect_doc_comment_text(doc_node)
+                        if doc_text:
+                            for need in oneline_needs:
+                                need.need[self.analyse_config.doc_comment_field] = doc_text
                 self.oneline_needs.extend(oneline_needs)
             if self.analyse_config.get_rst:
                 marked_rst = self.extract_marked_rst(
@@ -359,6 +370,39 @@ class SourceAnalyse:
             logger.info(f"Oneline needs extracted: {len(self.oneline_needs)}")
         if self.analyse_config.get_rst:
             logger.info(f"Marked rst extracted: {len(self.marked_rst)}")
+
+    def _collect_doc_comment_text(self, doc_node: TreeSitterNode) -> str:
+        """Collect all consecutive doc-comment nodes ending at doc_node, clean, and join.
+
+        For Rust line comments (///), multiple adjacent line_comment siblings each
+        represent one doc line; we walk backward to collect the full block, then
+        reverse to restore source order.  For block comments (/** */) and C/C++
+        comments there is only one node, so no backward walk is needed.
+        """
+        comment_type = self.analyse_config.comment_type
+        nodes: list[TreeSitterNode] = [doc_node]
+
+        from sphinx_codelinks.source_discover.config import CommentType  # noqa: PLC0415
+
+        if comment_type == CommentType.rust and doc_node.type == "line_comment":
+            cursor = doc_node.prev_named_sibling
+            while cursor is not None and cursor.type == "line_comment":
+                raw = cursor.text.decode("utf-8") if cursor.text else ""
+                raw_stripped = raw.strip()
+                if not raw_stripped.startswith("///") and not raw_stripped.startswith("//!"):
+                    break
+                nodes.append(cursor)
+                cursor = cursor.prev_named_sibling
+            nodes.reverse()
+
+        cleaned_parts = [
+            utils.strip_doc_comment_text(
+                n.text.decode("utf-8") if n.text else "",
+                comment_type,
+            )
+            for n in nodes
+        ]
+        return "\n".join(p for p in cleaned_parts if p)
 
     def merge_marked_content(self) -> None:
         self.all_marked_content.extend(self.need_id_refs)
