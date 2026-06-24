@@ -65,3 +65,51 @@ def test_strict_schema_ignores_unset_codelinks_fields(
         "Strict schema flagged unset sphinx-codelinks fields: "
         f"{json.dumps(report['validation_warnings'], indent=2)}"
     )
+
+
+@pytest.mark.skipif(
+    not SN_SUPPORTS_SCHEMAS,
+    reason="needs_schema_definitions requires sphinx-needs>=6.0.0",
+)
+def test_strict_schema_flags_populated_src_trace_url_fields(
+    tmp_path: Path,
+    make_app: Callable[..., SphinxTestApp],
+) -> None:
+    """Reproduces the customer-reported IMPL_303 failure.
+
+    Unlike the unset-field case above, a need produced by the ``src-trace``
+    directive with ``set_local_url``/``set_remote_url`` enabled gets real,
+    non-``None`` values for ``local-url``/``remote-url``. Those values are
+    never stripped by sphinx-needs' ``reduce_need()``, so a strict schema
+    that doesn't declare these properties itself (e.g. via
+    ``validate.local.properties`` or ``allOf``) will flag them as
+    unevaluated -- this is expected sphinx-needs behavior, not a
+    sphinx-codelinks defect.
+    """
+    this_file_dir = Path(__file__).parent
+    sphinx_project = Path("doc_test") / "schema_strictness_impl"
+    sphinx_src_dir = tmp_path / sphinx_project
+    shutil.copytree(
+        this_file_dir / sphinx_project,
+        sphinx_src_dir,
+        dirs_exist_ok=True,
+    )
+
+    app: SphinxTestApp = make_app(srcdir=sphinx_src_dir, freshenv=True)
+    app.build()
+
+    report = json.loads(
+        (Path(app.outdir) / "schema_violations.json").read_text(encoding="utf-8")
+    )
+
+    assert report["validated_needs_count"] >= 1
+    assert report["validation_warnings"] != {}, (
+        "Expected the populated local-url/remote-url fields on the "
+        "src-trace-produced need to trip the strict unevaluatedProperties "
+        "schema (reproducing the customer's IMPL_303 report); the schema "
+        "did not flag anything."
+    )
+
+    violations_text = json.dumps(report["validation_warnings"])
+    assert "local-url" in violations_text
+    assert "remote-url" in violations_text

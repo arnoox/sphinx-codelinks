@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn \"schema_violations\" --include=*.py /Users/arnaudriess/business/useblocks/sphinx-needs/sphinx_needs | head -10)",
+      "Read(//Users/arnaudriess/business/useblocks/sphinx-needs/sphinx_needs/**)",
+      "Read(//Users/arnaudriess/business/useblocks/sphinx-needs/**)",
+      "Bash(grep -rln \"schema_violations\" .)",
+      "Bash(python -m pytest tests/test_schema_validation.py -v)",
+      "Bash(uv run *)"
+    ]
+  }
+}
