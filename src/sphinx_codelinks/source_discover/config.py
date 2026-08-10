@@ -10,10 +10,12 @@ COMMENT_FILETYPE = {
     "python": ["py"],
     "cs": ["cs"],
     # ".mts"/".cts" are TypeScript's own ESM/CJS module variants. ".js"/".jsx"/
-    # ".mjs"/".cjs" are JavaScript, covered by the same comment type because the
-    # TSX grammar used to parse "ts" sources is a strict superset of the
-    # TypeScript grammar, which is itself a superset of JavaScript, so no
-    # separate grammar or comment_type value is needed.
+    # ".mjs"/".cjs" are JavaScript. All of these share the "ts" comment type:
+    # comment syntax is identical across the family, and the analyse stage
+    # picks the actual tree-sitter grammar per file from the suffix (the plain
+    # TypeScript grammar for ".ts"/".mts"/".cts", the TSX grammar for
+    # everything else — see utils.ts_grammar_key), so no separate
+    # comment_type value is needed here.
     "ts": ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"],
     "yaml": ["yml", "yaml"],
     "rust": ["rs"],

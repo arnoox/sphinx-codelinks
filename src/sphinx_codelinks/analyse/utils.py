@@ -101,6 +101,25 @@ JSON_STRUCTURE_TYPES = {
     "null",
 }
 
+# TypeScript's own module variants. Legacy angle-bracket type assertions
+# (``<T>x``) are valid syntax only here, not under the TSX grammar (see the
+# CommentType.ts branch of init_tree_sitter for what goes wrong otherwise), so
+# these three suffixes get the plain TypeScript grammar and everything else in
+# the JS/TS family falls back to TSX.
+TS_STRICT_GRAMMAR_SUFFIXES = {".ts", ".mts", ".cts"}
+
+
+def ts_grammar_key(src_path: Path) -> str:
+    """Return which tree-sitter-typescript grammar ``src_path`` needs.
+
+    ``"typescript"`` for TypeScript's own module variants (``.ts``, ``.mts``,
+    ``.cts``); ``"tsx"`` for the rest of the JavaScript/TypeScript family
+    (``.tsx``, ``.jsx``, ``.js``, ``.mjs``, ``.cjs``). Used both to pick the
+    grammar in ``init_tree_sitter`` and, by callers that parse many files, to
+    cache one parser per grammar instead of rebuilding one per file.
+    """
+    return "typescript" if src_path.suffix in TS_STRICT_GRAMMAR_SUFFIXES else "tsx"
+
 
 def is_text_file(filepath: Path, sample_size: int = 2048) -> bool:
     """Return True if file is likely text, False if binary."""
@@ -118,7 +137,17 @@ def is_text_file(filepath: Path, sample_size: int = 2048) -> bool:
 
 
 # @Tree-sitter parser initialization for multiple languages, IMPL_LANG_1, impl, [FE_C_SUPPORT, FE_CPP, FE_PY, FE_YAML, FE_RUST, FE_GO, FE_JSONC, FE_BASH, FE_TS]
-def init_tree_sitter(comment_type: CommentType) -> tuple[Parser, Query]:
+def init_tree_sitter(
+    comment_type: CommentType, src_path: Path | None = None
+) -> tuple[Parser, Query]:
+    """Build the (parser, query) pair for ``comment_type``.
+
+    ``src_path`` only matters for ``CommentType.ts``, whose grammar varies by
+    file suffix (see ``ts_grammar_key``); every other comment type ignores it
+    and uses a single grammar. When ``src_path`` is omitted the TSX grammar is
+    assumed, which is the safe default for the whole JS/TS family except
+    TypeScript's own module variants.
+    """
     if comment_type == CommentType.cpp:
         import tree_sitter_cpp  # noqa: PLC0415
 
@@ -137,11 +166,19 @@ def init_tree_sitter(comment_type: CommentType) -> tuple[Parser, Query]:
     elif comment_type == CommentType.ts:
         import tree_sitter_typescript  # noqa: PLC0415
 
-        # The TSX grammar is a strict superset of the TypeScript grammar, which is
-        # itself a superset of JavaScript, so it also parses plain .ts and the
-        # whole JavaScript family fine. Use it for all of them to avoid needing a
-        # per-file grammar choice.
-        parsed_language = Language(tree_sitter_typescript.language_tsx())
+        # Legacy angle-bracket type assertions (``<T>x``) are valid TypeScript
+        # syntax in .ts/.mts/.cts, but the same text is JSX syntax under the TSX
+        # grammar: ``<string>x`` parses as a jsx_opening_element and swallows the
+        # rest of the file into a single jsx_text node, silently dropping every
+        # marker after it. So the plain TypeScript grammar is required for those
+        # three suffixes. The TSX grammar remains the fallback for the rest of
+        # the JS/TS family (.tsx, .jsx, .js, .mjs, .cjs): JavaScript has no such
+        # cast syntax, so TSX is safe there, and it additionally handles JSX
+        # embedded in plain .js.
+        if src_path is not None and ts_grammar_key(src_path) == "typescript":
+            parsed_language = Language(tree_sitter_typescript.language_typescript())
+        else:
+            parsed_language = Language(tree_sitter_typescript.language_tsx())
         query = Query(parsed_language, TYPE_SCRIPT_QUERY)
     elif comment_type == CommentType.yaml:
         import tree_sitter_yaml  # noqa: PLC0415

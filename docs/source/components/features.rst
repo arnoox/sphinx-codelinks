@@ -274,10 +274,14 @@ Features
 
    The TypeScript language parser leverages tree-sitter to accurately identify and
    extract comments from TypeScript and JavaScript sources, including single-line
-   (``//``) and multi-line (``/* */``) comment styles. All files are parsed with
-   the TSX grammar — a strict superset of the TypeScript grammar, which is in turn
-   a superset of JavaScript — so ``.tsx`` files (including JSX comments such as
-   ``{/* ... */}``) and plain JavaScript sources need no per-file grammar choice.
+   (``//``) and multi-line (``/* */``) comment styles. The grammar is chosen per
+   file from its extension: ``.ts``, ``.mts``, and ``.cts`` — TypeScript's own
+   module variants — are parsed with the plain TypeScript grammar, since a legacy
+   angle-bracket type assertion (``<string>x``) is valid there but is JSX syntax
+   under the TSX grammar. Every other extension (``.tsx``, ``.jsx``, ``.js``,
+   ``.mjs``, ``.cjs``) is parsed with the TSX grammar, which is safe for plain
+   JavaScript and additionally handles JSX (including JSX comments such as
+   ``{/* ... */}``) embedded in ``.tsx`` or ``.js`` sources.
 
    Key capabilities:
 

@@ -37,11 +37,14 @@ LANG_MAP: dict[str, tuple[CommentType, str]] = {
     "jsonc": (CommentType.jsonc, "jsonc"),
     "bash": (CommentType.bash, "sh"),
     "typescript": (CommentType.ts, "ts"),
-    # `.tsx` is documentary: extraction never reads the file suffix, and the
-    # plain-TS and TSX grammars lex comments identically (the TSX-grammar
-    # choice is pinned by test_analyse_utils.py's has_error check instead).
-    # What this case pins: a marker on its own line inside a multi-line JSX
-    # block comment anchors to that line.
+    # `.tsx` matters here: extraction now picks the tree-sitter grammar per
+    # file from the suffix (utils.ts_grammar_key), and `.tsx` is one of the
+    # suffixes that gets the TSX grammar rather than the plain TypeScript one
+    # (the `.ts`/`.mts`/`.cts` suffixes get the latter — see
+    # utils.init_tree_sitter). What this case pins: a marker on its own line
+    # inside a multi-line JSX block comment anchors to that line, which
+    # requires the source (an arrow function returning JSX) to parse cleanly
+    # under the TSX grammar in the first place.
     "tsx": (CommentType.ts, "tsx"),
 }
 
