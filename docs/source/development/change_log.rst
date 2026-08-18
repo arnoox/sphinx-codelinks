@@ -18,6 +18,33 @@ New and Improved
   discovery supports ``.ts``, ``.tsx``, ``.mts``, ``.cts``, ``.js``, ``.jsx``,
   ``.mjs`` and ``.cjs`` extensions by default.
 
+Fixes
+.....
+
+- 🐛 Recognized legacy HTML-style comments (``<!-- ... -->``) under ``comment_type = "ts"``.
+
+  The TypeScript and TSX grammars emit these as a separate ``html_comment`` node from
+  ``comment``. Markers written this way in a ``.js`` source were silently dropped, with
+  no warning; the extraction query now matches both node kinds.
+
+- 🐛 Excluded common generated-output and dependency directories from source discovery by default.
+
+  With ``src_dir`` defaulting to ``"./"`` and ``comment_type = "ts"`` also discovering
+  ``.js``/``.jsx``/``.mjs``/``.cjs`` files, checked-in bundler/``tsc`` output was scanned as
+  source alongside the ``.ts`` it was generated from, producing duplicate need ids for the
+  same marker. ``exclude`` now defaults to ``["**/node_modules/**", "**/dist/**",
+  "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]`` when not set explicitly; an
+  explicit ``exclude`` (including ``[]``) replaces this default outright.
+
+- 📚 Documented JSDoc caveats for the ``ts`` comment type.
+
+  The default one-line ``start_sequence = "@"`` collides with JSDoc tags (``@param``,
+  ``@returns``, ``@deprecated``) whose description contains a comma; a more specific
+  sequence such as ``"@need"`` avoids this. Separately, a ``@need-ids:`` marker sharing a
+  line with a block comment's closing ``*/`` (as in a single-line JSDoc comment) has the
+  ``*/`` swallowed into the last need id — keep such markers on their own line, or use
+  ``//`` comments for reference markers.
+
 .. _`release:1.4.0`:
 
 1.4.0

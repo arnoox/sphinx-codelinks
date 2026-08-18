@@ -292,6 +292,12 @@ Features
    * File extensions ``.ts``, ``.tsx``, ``.mts``, ``.cts``, ``.js``, ``.jsx``,
      ``.mjs`` and ``.cjs`` auto-discovered when ``comment_type = "ts"``
 
+   A ``@need-ids:`` reference marker that shares a line with a block comment's
+   closing ``*/`` — as in a single-line JSDoc comment such as
+   ``/** @need-ids: ID */`` — has the ``*/`` swallowed into the last need id.
+   Put the marker on its own line inside the block, or use a ``//`` comment
+   for reference markers, to avoid this.
+
    .. fault:: Traceability objects are not detected in TypeScript language
       :id: FAULT_TS_1
 

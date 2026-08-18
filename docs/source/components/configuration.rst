@@ -175,7 +175,7 @@ Configures how **Sphinx-CodeLinks** discovers and processes source files within 
 
    [codelinks.projects.my_project.source_discover]
    src_dir = "./"
-   exclude = []
+   exclude = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]
    include = []
    gitignore = true
    follow_links = false
@@ -217,7 +217,7 @@ exclude
 Defines a list of glob patterns for files and directories to exclude from discovery. This is useful for ignoring build artifacts, temporary files, or specific source files that shouldn't be processed.
 
 **Type:** ``list[str]``
-**Default:** ``[]``
+**Default:** ``["**/node_modules/**", "**/dist/**", "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]``
 
 .. code-block:: toml
 
@@ -235,6 +235,8 @@ Defines a list of glob patterns for files and directories to exclude from discov
 - ``"*.o"`` - Exclude object files
 - ``"**/__pycache__/**"`` - Exclude Python cache directories
 - ``"node_modules/**"`` - Exclude Node.js dependencies
+
+.. note:: When ``exclude`` is not set, it defaults to a list of common generated-output and dependency directory globs (``node_modules``, ``dist``, ``build``, ``lib``, ``out``, ``coverage``). This matters most for the ``ts`` :ref:`comment_type <discover_config>`, which also discovers ``.js``/``.jsx``/``.mjs``/``.cjs`` files: without this default, checked-in bundler/``tsc`` output would be scanned as source alongside the ``.ts`` it was generated from, producing duplicate need ids for the same marker. Setting ``exclude`` explicitly — including to ``[]`` — replaces this default outright rather than adding to it.
 
 include
 ^^^^^^^
@@ -403,7 +405,7 @@ Configures how **Sphinx-CodeLinks** analyse source files to extract markers from
 
    [codelinks.projects.my_project.source_discover]
    src_dir = "./"
-   exclude = []
+   exclude = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]
    include = []
    gitignore = true
    follow_links = false
@@ -544,6 +546,8 @@ Is equivalent to this RST directive:
       :links: SPEC_1, SPEC_2
 
 .. important:: The ``type`` and ``title`` fields must be configured in ``needs_fields`` as they are mandatory for **Sphinx-Needs**.
+
+.. note:: For the TS/JS family (``comment_type = "ts"``), the default ``start_sequence = "@"`` collides with JSDoc tags such as ``@param``, ``@returns``, and ``@deprecated``: a tag description containing a comma is misparsed as a bogus one-line need. Set a more specific ``start_sequence`` (e.g. ``"@need"``) to avoid this.
 
 analyse.need_id_refs
 ^^^^^^^^^^^^^^^^^^^^
