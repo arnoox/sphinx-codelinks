@@ -30,6 +30,31 @@ COMMENT_FILETYPE = {
 }
 
 
+# Default ``exclude`` glob patterns applied when a project's configuration does
+# not set ``exclude`` explicitly.
+#
+# ``src_dir`` defaults to ``"./"`` and the ``ts`` comment type claims ``.js``/
+# ``.jsx``/``.mjs``/``.cjs`` in addition to TypeScript's own extensions, so a
+# checked-in ``tsc``/bundler output directory (``dist/``, ``build/``, ``lib/``,
+# ...) is otherwise scanned as source alongside the ``.ts`` it was generated
+# from, producing duplicate need ids for the same marker. These directory
+# names are common generated-output or dependency locations across the JS/TS
+# ecosystem (and beyond), so excluding them by default avoids that duplication
+# for most projects out of the box.
+#
+# Setting ``exclude`` explicitly in a project's configuration replaces this
+# default outright (dataclass fields don't merge) — including setting it to
+# ``[]`` to scan everything.
+DEFAULT_EXCLUDE = [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/lib/**",
+    "**/out/**",
+    "**/coverage/**",
+]
+
+
 class CommentType(str, Enum):
     python = "python"
     cpp = "cpp"
@@ -81,10 +106,11 @@ class SourceDiscoverConfig:
     """The root of the source directory."""
 
     exclude: list[str] = field(
-        default_factory=list,
+        default_factory=lambda: list(DEFAULT_EXCLUDE),
         metadata={"schema": {"type": "array", "items": {"type": "string"}}},
     )
-    """The glob pattern to exclude files."""
+    """The glob pattern to exclude files. Defaults to ``DEFAULT_EXCLUDE``; set
+    this explicitly (e.g. to ``[]``) to replace that default outright."""
 
     include: list[str] = field(
         default_factory=list,

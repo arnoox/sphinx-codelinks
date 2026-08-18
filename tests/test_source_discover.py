@@ -7,6 +7,7 @@ import pytest
 
 from sphinx_codelinks.source_discover.config import (
     COMMENT_FILETYPE,
+    DEFAULT_EXCLUDE,
     SourceDiscoverConfig,
     SourceDiscoverConfigType,
 )
@@ -215,6 +216,61 @@ def test_jsonc_discover_gate() -> None:
     assert "demo.jsonc" in discovered
     assert "with_modeline.json" in discovered
     assert "plain.json" not in discovered
+
+
+def _make_generated_output_tree(tmp_path: Path) -> Path:
+    """Lay out a source file alongside checked-in generated output.
+
+    Mirrors a ``tsc``/bundler output tree: ``src/app.ts`` is the real source,
+    while ``lib/app.js``, ``dist/app.js`` and ``node_modules/pkg/index.js``
+    stand in for generated or vendored output that carries the same marker.
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.ts").write_text(
+        "// @Feature A, IMPL_1, impl\n", encoding="utf-8"
+    )
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib" / "app.js").write_text(
+        "// @Feature A, IMPL_1, impl\n", encoding="utf-8"
+    )
+    (tmp_path / "dist").mkdir()
+    (tmp_path / "dist" / "app.js").write_text(
+        "// @Feature A, IMPL_1, impl\n", encoding="utf-8"
+    )
+    (tmp_path / "node_modules" / "pkg").mkdir(parents=True)
+    (tmp_path / "node_modules" / "pkg" / "index.js").write_text(
+        "// vendored\n", encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_default_exclude_skips_generated_output(tmp_path: Path) -> None:
+    """The default ``exclude`` keeps generated/vendored JS out of discovery."""
+    src_dir = _make_generated_output_tree(tmp_path)
+    config = SourceDiscoverConfig(src_dir=src_dir, comment_type="ts", gitignore=False)
+    assert config.exclude == DEFAULT_EXCLUDE
+
+    discover = SourceDiscover(config)
+    discovered = sorted(str(p.relative_to(src_dir)) for p in discover.source_paths)
+    assert discovered == [str(Path("src") / "app.ts")]
+
+
+def test_explicit_exclude_replaces_default(tmp_path: Path) -> None:
+    """An explicit ``exclude`` (even ``[]``) fully replaces the default list."""
+    src_dir = _make_generated_output_tree(tmp_path)
+    config = SourceDiscoverConfig(
+        src_dir=src_dir, comment_type="ts", gitignore=False, exclude=[]
+    )
+    assert config.exclude == []
+
+    discover = SourceDiscover(config)
+    discovered = sorted(str(p.relative_to(src_dir)) for p in discover.source_paths)
+    assert discovered == [
+        str(Path("dist") / "app.js"),
+        str(Path("lib") / "app.js"),
+        str(Path("node_modules") / "pkg" / "index.js"),
+        str(Path("src") / "app.ts"),
+    ]
 
 
 def test_follow_links(tmp_path: Path) -> None:
