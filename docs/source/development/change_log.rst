@@ -27,14 +27,22 @@ Fixes
   ``comment``. Markers written this way in a ``.js`` source were silently dropped, with
   no warning; the extraction query now matches both node kinds.
 
-- 🐛 Excluded common generated-output and dependency directories from source discovery by default.
+- 🐛 Excluded common generated-output and dependency directories from ``ts`` source discovery by default.
 
   With ``src_dir`` defaulting to ``"./"`` and ``comment_type = "ts"`` also discovering
   ``.js``/``.jsx``/``.mjs``/``.cjs`` files, checked-in bundler/``tsc`` output was scanned as
   source alongside the ``.ts`` it was generated from, producing duplicate need ids for the
-  same marker. ``exclude`` now defaults to ``["**/node_modules/**", "**/dist/**",
-  "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]`` when not set explicitly; an
-  explicit ``exclude`` (including ``[]``) replaces this default outright.
+  same marker. For ``comment_type = "ts"`` projects, ``exclude`` now defaults to
+  ``["**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**", "**/coverage/**"]`` when
+  not set explicitly; an explicit ``exclude`` (including ``[]``) replaces this default
+  outright. ``**/lib/**`` is deliberately not in this list — it is ambiguous even within the
+  JS/TS ecosystem, where many packages use ``lib/`` for hand-written source rather than as a
+  ``tsc`` ``outDir``; projects whose ``outDir`` is ``lib`` should add ``"**/lib/**"`` to their
+  own ``exclude``. Every other ``comment_type`` still defaults ``exclude`` to ``[]`` — this
+  default never applies outside the ``ts`` family, so e.g. a ``cpp`` project's hand-written
+  ``lib/`` source is unaffected. The CLI's ``discover``/``analyse`` commands now resolve this
+  same per-project default too; they previously always scanned everything regardless of
+  ``comment_type``, disagreeing with the Sphinx extension.
 
 - 📚 Documented JSDoc caveats for the ``ts`` comment type.
 

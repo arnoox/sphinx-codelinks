@@ -30,26 +30,39 @@ COMMENT_FILETYPE = {
 }
 
 
-# Default ``exclude`` glob patterns applied when a project's configuration does
-# not set ``exclude`` explicitly.
+# Default ``exclude`` glob patterns applied to ``ts`` (TypeScript/JavaScript
+# family) projects when their configuration does not set ``exclude``
+# explicitly.
 #
 # ``src_dir`` defaults to ``"./"`` and the ``ts`` comment type claims ``.js``/
 # ``.jsx``/``.mjs``/``.cjs`` in addition to TypeScript's own extensions, so a
-# checked-in ``tsc``/bundler output directory (``dist/``, ``build/``, ``lib/``,
-# ...) is otherwise scanned as source alongside the ``.ts`` it was generated
-# from, producing duplicate need ids for the same marker. These directory
-# names are common generated-output or dependency locations across the JS/TS
-# ecosystem (and beyond), so excluding them by default avoids that duplication
-# for most projects out of the box.
+# checked-in ``tsc``/bundler output directory (``dist/``, ``build/``, ...) is
+# otherwise scanned as source alongside the ``.ts`` it was generated from,
+# producing duplicate need ids for the same marker. These directory names are
+# common generated-output or dependency locations across the JS/TS ecosystem,
+# so excluding them by default avoids that duplication for most projects out
+# of the box.
+#
+# ``**/lib/**`` is deliberately NOT in this list: it is ambiguous even within
+# the JS/TS ecosystem, where many packages use ``lib/`` for hand-written
+# source rather than as a ``tsc`` ``outDir``. Projects whose ``outDir`` is
+# ``lib`` should add ``"**/lib/**"`` to their own ``exclude`` explicitly.
+#
+# This default is applied only for ``comment_type == "ts"``. Every other
+# ``comment_type`` (``cpp``, ``python``, ``rust``, ``go``, ``yaml``, ``jsonc``,
+# ``bash``, ``cs``, ...) defaults ``exclude`` to ``[]`` — unchanged from
+# before this default existed. ``cpp`` projects in particular very commonly
+# keep hand-written library source under ``lib/``, so a directory-name-based
+# default that isn't scoped to the language family would silently drop
+# markers there.
 #
 # Setting ``exclude`` explicitly in a project's configuration replaces this
-# default outright (dataclass fields don't merge) — including setting it to
-# ``[]`` to scan everything.
-DEFAULT_EXCLUDE = [
+# default outright (it is not merged) — including setting it to ``[]`` to
+# scan everything.
+TS_DEFAULT_EXCLUDE = [
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",
-    "**/lib/**",
     "**/out/**",
     "**/coverage/**",
 ]
@@ -70,6 +83,19 @@ class CommentType(str, Enum):
     jsonc = "jsonc"
     # @Support Bash style comments, IMPL_BASH_1, impl, [FE_BASH];
     bash = "bash"
+
+
+def default_exclude_for_comment_type(comment_type: str) -> list[str]:
+    """Resolve the default ``exclude`` patterns for a given ``comment_type``.
+
+    Only the ``ts`` (TypeScript/JavaScript) family gets a non-empty default —
+    see ``TS_DEFAULT_EXCLUDE`` for why. Every other ``comment_type`` defaults
+    to ``[]``, i.e. no default exclusion at all, matching the behavior before
+    a default was ever introduced.
+    """
+    if comment_type == CommentType.ts:
+        return list(TS_DEFAULT_EXCLUDE)
+    return []
 
 
 class SourceDiscoverSectionConfigType(TypedDict, total=False):
@@ -105,12 +131,18 @@ class SourceDiscoverConfig:
     )
     """The root of the source directory."""
 
-    exclude: list[str] = field(
-        default_factory=lambda: list(DEFAULT_EXCLUDE),
+    exclude: list[str] | None = field(
+        default=None,
         metadata={"schema": {"type": "array", "items": {"type": "string"}}},
     )
-    """The glob pattern to exclude files. Defaults to ``DEFAULT_EXCLUDE``; set
-    this explicitly (e.g. to ``[]``) to replace that default outright."""
+    """The glob pattern to exclude files.
+
+    Leave unset (``None``) to get the ``comment_type``-derived default
+    resolved in ``__post_init__`` (see ``default_exclude_for_comment_type``):
+    ``TS_DEFAULT_EXCLUDE`` for ``comment_type == "ts"``, ``[]`` for every
+    other ``comment_type``. Set this explicitly — including to ``[]`` — to
+    replace that default outright; it is never merged with it.
+    """
 
     include: list[str] = field(
         default_factory=list,
@@ -134,6 +166,14 @@ class SourceDiscoverConfig:
         },
     )
     """The file types to discover."""
+
+    def __post_init__(self) -> None:
+        # ``None`` means "the user didn't set exclude" (a dataclass field
+        # default can't otherwise be told apart from an explicit ``[]``) —
+        # resolve it to the comment_type-derived default. An explicit value,
+        # including ``[]``, is left untouched.
+        if self.exclude is None:
+            self.exclude = default_exclude_for_comment_type(self.comment_type)
 
     @classmethod
     def get_schema(cls, name: str) -> dict[str, Any] | None:  # type: ignore[explicit-any]

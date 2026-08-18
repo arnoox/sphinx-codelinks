@@ -175,7 +175,8 @@ Configures how **Sphinx-CodeLinks** discovers and processes source files within 
 
    [codelinks.projects.my_project.source_discover]
    src_dir = "./"
-   exclude = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]
+   # exclude is omitted here to keep its comment_type-derived default; see
+   # the `exclude` field below.
    include = []
    gitignore = true
    follow_links = false
@@ -217,7 +218,7 @@ exclude
 Defines a list of glob patterns for files and directories to exclude from discovery. This is useful for ignoring build artifacts, temporary files, or specific source files that shouldn't be processed.
 
 **Type:** ``list[str]``
-**Default:** ``["**/node_modules/**", "**/dist/**", "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]``
+**Default:** Derived from ``comment_type`` — see the note below. ``[]`` for every ``comment_type`` except ``ts``, where it is ``["**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**", "**/coverage/**"]``.
 
 .. code-block:: toml
 
@@ -236,7 +237,18 @@ Defines a list of glob patterns for files and directories to exclude from discov
 - ``"**/__pycache__/**"`` - Exclude Python cache directories
 - ``"node_modules/**"`` - Exclude Node.js dependencies
 
-.. note:: When ``exclude`` is not set, it defaults to a list of common generated-output and dependency directory globs (``node_modules``, ``dist``, ``build``, ``lib``, ``out``, ``coverage``). This matters most for the ``ts`` :ref:`comment_type <discover_config>`, which also discovers ``.js``/``.jsx``/``.mjs``/``.cjs`` files: without this default, checked-in bundler/``tsc`` output would be scanned as source alongside the ``.ts`` it was generated from, producing duplicate need ids for the same marker. Setting ``exclude`` explicitly — including to ``[]`` — replaces this default outright rather than adding to it.
+.. note::
+
+   When ``exclude`` is not set, its default is derived from this project's own :ref:`comment_type <discover_config>`, not applied globally:
+
+   - ``comment_type = "ts"`` (the TypeScript/JavaScript family, which also discovers ``.js``/``.jsx``/``.mjs``/``.cjs`` files) defaults ``exclude`` to ``["**/node_modules/**", "**/dist/**", "**/build/**", "**/out/**", "**/coverage/**"]``. Without this, checked-in bundler/``tsc`` output would be scanned as source alongside the ``.ts`` it was generated from, producing duplicate need ids for the same marker.
+   - Every other ``comment_type`` (``cpp``, ``python``, ``rust``, ``go``, ``yaml``, ``jsonc``, ``bash``, ``cs``, ...) defaults ``exclude`` to ``[]`` — no default exclusion at all.
+
+   ``**/lib/**`` is deliberately **not** in the ``ts`` default: it is ambiguous even within the JS/TS ecosystem, since many packages use ``lib/`` for hand-written source rather than as a ``tsc`` ``outDir`` — and it is common hand-written C/C++ library source outside that ecosystem entirely. If your ``ts`` project's ``outDir`` is ``lib``, add ``"**/lib/**"`` to your own ``exclude`` explicitly.
+
+   Setting ``exclude`` explicitly — including to ``[]`` — replaces the derived default outright rather than adding to it, and does so regardless of ``comment_type``.
+
+   This is resolved identically whether the project is loaded through the Sphinx extension or through the ``discover``/``analyse`` CLI commands: passing ``-e``/``--excludes`` to ``discover`` behaves the same way — omit it to get the ``comment_type``-derived default, or pass it (one or more times) to replace that default outright.
 
 include
 ^^^^^^^
@@ -405,7 +417,8 @@ Configures how **Sphinx-CodeLinks** analyse source files to extract markers from
 
    [codelinks.projects.my_project.source_discover]
    src_dir = "./"
-   exclude = ["**/node_modules/**", "**/dist/**", "**/build/**", "**/lib/**", "**/out/**", "**/coverage/**"]
+   # exclude is omitted here to keep its comment_type-derived default; see
+   # the `exclude` field below.
    include = []
    gitignore = true
    follow_links = false
