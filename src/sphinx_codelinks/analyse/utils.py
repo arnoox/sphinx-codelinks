@@ -75,7 +75,14 @@ PYTHON_QUERY = """
 CPP_QUERY = """(comment) @comment"""
 C_SHARP_QUERY = """(comment) @comment"""
 # @TypeScript comment query for tree-sitter, IMPL_TS_3, impl, [FE_TS]
-TYPE_SCRIPT_QUERY = """(comment) @comment"""
+# ``html_comment`` is a separate node kind the TypeScript/TSX grammars emit
+# for legacy ``<!-- ... -->`` comments, which are valid in the ``.js`` sources
+# this comment type also covers. Without matching it, markers written in that
+# style are silently dropped.
+TYPE_SCRIPT_QUERY = """
+    (comment) @comment
+    (html_comment) @comment
+"""
 YAML_QUERY = """(comment) @comment"""
 RUST_QUERY = """
     (line_comment) @comment
