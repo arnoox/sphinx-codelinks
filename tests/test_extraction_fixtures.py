@@ -46,6 +46,11 @@ LANG_MAP: dict[str, tuple[CommentType, str]] = {
     # requires the source (an arrow function returning JSX) to parse cleanly
     # under the TSX grammar in the first place.
     "tsx": (CommentType.ts, "tsx"),
+    # `.js` matters here: it is parsed with the TSX grammar (see
+    # utils.ts_grammar_key), which also emits legacy ``<!-- ... -->``
+    # ``html_comment`` nodes as a separate node kind from ``comment`` — this
+    # case pins that the query captures both.
+    "js": (CommentType.ts, "js"),
 }
 
 

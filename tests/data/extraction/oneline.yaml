@@ -82,3 +82,17 @@ jsx_oneliner_tsx:
         */}
       </div>
     );
+
+# legacy HTML-style comments (<!-- ...) are valid in .js sources and are a
+# separate ``html_comment`` node from ``comment`` under the TSX grammar; the
+# query must capture both or the marker is silently dropped. These comments
+# run to end of line like ``//`` (Annex B), so the closing ``-->`` sits on
+# its own line — sharing the marker's line would swallow it into the last
+# field, the same pre-existing engine behavior noted above for jsx_oneliner_tsx
+html_comment_oneliner_js:
+  lang: js
+  config: default
+  source: |
+    <!-- @Html Title, IMPL_HTML, impl, [REQ_HTML]
+    -->
+    const x = 1;
