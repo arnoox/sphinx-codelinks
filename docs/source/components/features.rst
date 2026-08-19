@@ -280,8 +280,10 @@ Features
    angle-bracket type assertion (``<string>x``) is valid there but is JSX syntax
    under the TSX grammar. Every other extension (``.tsx``, ``.jsx``, ``.js``,
    ``.mjs``, ``.cjs``) is parsed with the TSX grammar, which is safe for plain
-   JavaScript and additionally handles JSX (including JSX comments such as
-   ``{/* ... */}``) embedded in ``.tsx`` or ``.js`` sources.
+   JavaScript and additionally handles JSX embedded in ``.tsx`` or ``.js`` sources.
+   JSX comment markers (``{/* ... */}``) are supported only when the marker
+   appears on its own line inside the comment block; single-line JSX comments
+   (``{/* @Title, ID, impl, [REQ] */}``) are not currently supported.
 
    Key capabilities:
 
@@ -291,6 +293,8 @@ Features
      a function or arrow function
    * File extensions ``.ts``, ``.tsx``, ``.mts``, ``.cts``, ``.js``, ``.jsx``,
      ``.mjs`` and ``.cjs`` auto-discovered when ``comment_type = "ts"``
+   * Markers in TypeScript declaration files (``.d.ts``) are discovered but will not
+     resolve to an enclosing scope, since declaration files contain only type declarations
 
    A ``@need-ids:`` reference marker that shares a line with a block comment's
    closing ``*/`` — as in a single-line JSDoc comment such as
