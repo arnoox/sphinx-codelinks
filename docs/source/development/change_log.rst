@@ -3,8 +3,8 @@
 Changelog
 =========
 
-Under development
------------------
+Unreleased
+----------
 
 New and Improved
 ................
