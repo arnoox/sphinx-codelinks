@@ -10,7 +10,7 @@ covers what's needed to get moving quickly.
 ## What this project is
 
 sphinx-codelinks is a Sphinx extension providing fast source-code traceability for
-Sphinx-Needs: it scans source files (C++, Python, C#, Rust, TypeScript, Go, YAML, JSON) for
+Sphinx-Needs: it scans source files (C++, Python, C#, Rust, TypeScript, JavaScript, Go, Bash, YAML, JSON) for
 marker comments via tree-sitter, and generates Sphinx-Needs items / RST that link
 documentation back to exact source locations.
 
@@ -57,8 +57,12 @@ The CLI itself is installed as `codelinks` (`codelinks analyse <config.toml>`,
 Pipeline: **Source Files → Discovery → Parsing → Analysis → Results (JSON) → RST Generation**
 
 - `source_discover/` — finds source files by include/exclude patterns, respects `.gitignore`.
+  `COMMENT_FILETYPE` dict in `source_discover/config.py` maps comment types to file extensions.
+- `analyse/utils.py` — per-language setup via `init_tree_sitter(comment_type)`, an if/elif chain
+  that pairs each comment type with a tree-sitter grammar (`tree_sitter_cpp`, `tree_sitter_python`,
+  etc.) and a per-language `*_QUERY` constant. Scope detection uses the `SCOPE_NODE_TYPES` dict
+  to map comment types to their scope node types (functions, classes, etc.).
 - `analyse/oneline_parser.py` — tree-sitter based parser extracting comment marker nodes.
-- `analyse/projects.py` — per-language analyzers, registered in a `LANGUAGE_ANALYZERS` dict.
 - `analyse/analyse.py` — orchestrates discovery + parsing + analysis into `analyse/models.py`
   Pydantic result models.
 - `needextend_write.py` — turns analysis JSON into RST with Sphinx-Needs `needextend`
@@ -70,9 +74,11 @@ Pipeline: **Source Files → Discovery → Parsing → Analysis → Results (JSO
   options/types, generate standalone traced-source HTML pages, and inject CSS
   (`sphinx_extension/ub_sct.css`). See AGENTS.md for the full event table and mermaid diagram.
 
-Adding a new language analyzer, marker type, CLI command, or config option each follow a
+Adding a new language, marker type, CLI command, or config option each follow a
 short recipe documented in AGENTS.md under "Common Patterns" — follow those rather than
-inventing a new approach.
+inventing a new approach. To add a language: update `COMMENT_FILETYPE`, add a case to
+`init_tree_sitter()` wiring the tree-sitter grammar, add scope types to `SCOPE_NODE_TYPES`,
+define a `*_QUERY` constant, and add test data.
 
 ## Code style
 

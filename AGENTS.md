@@ -399,20 +399,21 @@ The CLI uses Typer for command definitions:
 ### Adding Support for a New Language
 
 1. Add tree-sitter parser dependency to `pyproject.toml` (e.g., `tree-sitter-java`)
-2. Create language-specific analyzer in `analyse/projects.py`:
+2. Add comment type to `CommentType` enum in `source_discover/config.py`
+3. Add file extensions to `COMMENT_FILETYPE` dict in `source_discover/config.py` (e.g., `"java": ["java"]`)
+4. Add a case to `init_tree_sitter()` in `analyse/utils.py` wiring the tree-sitter grammar:
 
    ```python
-   class JavaAnalyzer(BaseAnalyzer):
-       language = "java"
-       parser_language = "java"
-
-       def get_comment_nodes(self, tree):
-           # Return comment nodes from tree
+   elif comment_type == CommentType.java:
+       import tree_sitter_java  # noqa: PLC0415
+       parsed_language = Language(tree_sitter_java.language())
+       query = Query(parsed_language, JAVA_QUERY)
    ```
 
-3. Register analyzer in `LANGUAGE_ANALYZERS` dict in `projects.py`
-4. Add test files in `tests/data/<language>/`
-5. Add tests in `tests/test_analyse.py`
+5. Define a `JAVA_QUERY` constant in `analyse/utils.py` extracting comments for the language
+6. Add scope types to `SCOPE_NODE_TYPES` dict in `analyse/utils.py` (e.g., `CommentType.java: {"method_declaration", "class_declaration"}`)
+7. Add test files in `tests/data/<language>/`
+8. Add tests in `tests/test_analyse.py`
 
 ### Adding a New Marker Type
 
